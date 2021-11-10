@@ -1,102 +1,125 @@
-import torch.optim as optim
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
 import torch
-from net import Net
+from torchvision import datasets, models, transforms
+import torch.nn as nn
+from torch.nn import functional as F
+import torch.optim as optim
+import os
+import sys
 from utils import *
 from PIL import Image
-import os
-import torchvision
-import torch.nn as nn
-import numpy as np
-import torch.nn.functional as F
-from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader
-from torchvision import datasets
-import torchvision.transforms as tt
-from torchvision.utils import make_grid
-import matplotlib.pyplot as plt
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-emotionsDict = {
-    "Angry": 0,
-    "Disgust": 1,
-    "Fear": 2,
-    "Happy": 3,
-    "Neutral": 4,
-    "Sad": 5,
-    "Surprise": 6,
-}
-
-curr = os.path.dirname(__file__)
-
-# check if the processed data exists, otherwise, recreate it
-if not os.path.exists(os.path.join(curr, r'processed/')):
-    processFacesFromPictures()
 
 
-# train = TrainingData()
+def main():
+    curr = os.path.dirname(__file__)
+    emotionsDict = {
+        "Angry": 0,
+        "Disgust": 1,
+        "Fear": 2,
+        "Happy": 3,
+        "Neutral": 4,
+        "Sad": 5,
+        "Surprise": 6,
+    }
 
-training_data = datasets.ImageFolder(root=os.path.join(curr, r'fer2013/train/'),
-                                     transform=transforms.ToTensor())
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
 
-# print(training_data, training_data.targets)
+    # preffered image size by resnet is (224, 224, 3)
+    data_transforms = {
+        'train':
+            transforms.Compose([
+                transforms.Resize((48, 48)),
+                transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize]),
+        'validation':
+            transforms.Compose([
+                transforms.Resize((48, 48)),
+                transforms.ToTensor(),
+                normalize])}
 
-testing_data = datasets.ImageFolder(root=os.path.join(curr, r'fer2013/validation/'),
-                                    transform=transforms.ToTensor())
+    image_datasets = {
+        'train':
+            datasets.ImageFolder('fer2013/train', data_transforms['train']),
+        'validation':
+            datasets.ImageFolder('fer2013/validation', data_transforms['validation'])}
 
-training_set = DataLoader(training_data, batch_size=10, shuffle=True)
-testing_set = DataLoader(testing_data, batch_size=10, shuffle=True)
+    dataloaders = {
+        'train':
+            torch.utils.data.DataLoader(
+                image_datasets['train'],
+                batch_size=32,
+                shuffle=True,
+                num_workers=4),
+        'validation':
+            torch.utils.data.DataLoader(
+                image_datasets['validation'],
+                batch_size=32,
+                shuffle=False,
+                num_workers=4)}
 
-net = Net()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(device)
+    model = models.resnet50(pretrained=True).to(device)
 
-loss_function = nn.CrossEntropyLoss()
-optimizer = optim.Adam(net.parameters(), lr=0.001)
+    for param in model.parameters():
+        param.requires_grad = False
 
-for epoch in range(5):  # 3 full passes over the data
-    for idx, data in enumerate(training_set):  # `data` is a batch of data
-        # X is the batch of features, y is the batch of targets.
-        sys.stdout.flush()
-        sys.stdout.write("\bCurrent epoch: %s/%s. Current progress: %s %%\r" %
-                         (str(epoch), str(32), (str(math.ceil((idx / len(training_set)) * 100)))))
-        X, y = data  # X is the batch of features, y is the batch of targets.
-        # print(X.shape, y.shape)
-        # sets gradients to 0 before loss calc. You will do this likely every step.
-        net.zero_grad()
-        # print(X[0])
-        # pass in the reshaped batch (recall they are 28x28 atm)
-        output = net(X)
-        # print('SHAPE', y.shape, torch.unsqueeze(y, 3).shape)
-        # calc and grab the loss value
-        preds = torch.argmax(output, dim=1)
-        # print(X, y)
-        # print(preds.shape, output.shape, y.shape, y.unsqueeze(1).shape)
-        # print(preds, output, y)
-        # print(y.unsqueeze(1), y.unsqueeze(1).shape)
-        # loss = F.nll_loss(output, y)
-        for idx, i in enumerate(output):
-            loss = F.nll_loss(torch.argmax(i), y[idx])
-            loss.backward()  # apply this loss backwards thru the network's parameters
-        # loss.backward()  # apply this loss backwards thru the network's parameters
-        optimizer.step()  # attempt to optimize weights to account for loss/gradients
-    print(loss)  # print loss. We hope loss (a measure of wrong-ness) declines!
+    model.fc = nn.Sequential(
+        nn.Linear(2048, 128),
+        nn.ReLU(inplace=True),
+        nn.Linear(128, 7)).to(device)
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.fc.parameters())
+
+    def train_model(model, criterion, optimizer, num_epochs=3):
+        for epoch in range(num_epochs):
+            print('Epoch {}/{}'.format(epoch+1, num_epochs))
+            print('-' * 10)
+
+            for phase in ['train', 'validation']:
+                if phase == 'train':
+                    model.train()
+                else:
+                    model.eval()
+
+                running_loss = 0.0
+                running_corrects = 0
+
+                for inputs, labels in dataloaders[phase]:
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
+
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+
+                    if phase == 'train':
+                        optimizer.zero_grad()
+                        loss.backward()
+                        optimizer.step()
+
+                    _, preds = torch.max(outputs, 1)
+                    running_loss += loss.item() * inputs.size(0)
+                    running_corrects += torch.sum(preds == labels.data)
+
+                epoch_loss = running_loss / len(image_datasets[phase])
+                epoch_acc = running_corrects.double() / \
+                    len(image_datasets[phase])
+
+                print('{} loss: {:.4f}, acc: {:.4f}'.format(phase,
+                                                            epoch_loss,
+                                                            epoch_acc))
+        return model
+
+    model_trained = train_model(model, criterion, optimizer, num_epochs=3)
+
+    torch.save(model_trained.state_dict(), 'models/pytorch/weights.h5')
 
 
-correct = 0
-total = 0
-
-with torch.no_grad():
-    for data in testing_set:
-        X, y = data
-        output = net(X)
-        for idx, i in enumerate(output):
-            print(torch.argmax(i), y[idx])
-            if torch.argmax(i) == y[idx]:
-                correct += 1
-            total += 1
-
-accuracy = round(correct/total, 3)
-print("Accuracy: ", accuracy)
-
-# trainset = torch.utils.data.DataLoader(train, batch_size=10, shuffle=True)
-if accuracy > 0.2 and not os.path.exists('v1_model.pth'):
-    torch.save(net.state_dict(), 'v1_model.pth')
+if __name__ == "__main__":
+    main()

@@ -40,6 +40,8 @@ def startVideoCapture():
     fcd.runVideoDetection()
 
 
+
+
 def centralizeImages(outputPath):
     if not outputPath:
         outputPath = os.path.join(curr, r'processed/centralized/')
