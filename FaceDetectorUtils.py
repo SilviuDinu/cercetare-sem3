@@ -10,9 +10,10 @@ from PIL import Image
 
 
 
-class FaceDetector(object):
-    def __init__(self, mtcnn):
-        self.mtcnn = mtcnn
+class FaceDetector():
+    def __init__(self):
+        self.mtcnn_normal = MTCNN_NORMAL()
+        self.mtcnn_pytorch = MTCNN_PYTORCH()
 
     def _draw(self, frame, boxes, probs, landmarks):
 
@@ -50,7 +51,7 @@ class FaceDetector(object):
             ret, frame = cap.read()
             try:
                 # detect face box, probability and landmarks
-                boxes, probs, landmarks = self.mtcnn.detect(
+                boxes, probs, landmarks = self.mtcnn_pytorch.detect(
                     frame, landmarks=True)
                 # draw on frame
                 self._draw(frame, boxes, probs, landmarks)
@@ -81,7 +82,7 @@ class FaceDetector(object):
 
                         pixels = cv2.imread(filename)
                         # detect faces in the image
-                        detector = MTCNN_NORMAL()
+                        detector = self.mtcnn_normal
                         faces = detector.detect_faces(pixels)
                         # plot each box
                         # self.draw_facebox(filename, faces)
@@ -114,7 +115,7 @@ class FaceDetector(object):
                         resnet = InceptionResnetV1(pretrained='vggface2').eval()
                         img = cv2.imread(filename)
 
-                        mtcnn = MTCNN_PYTORCH()
+                        mtcnn = self.mtcnn_pytorch
                         # Get cropped and prewhitened image tensor
                         if not os.path.exists(os.path.join(outputPath, emotionCategory)):
                             os.makedirs(os.path.join(outputPath, emotionCategory))
