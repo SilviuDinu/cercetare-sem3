@@ -1,6 +1,4 @@
-from numpy.core.fromnumeric import squeeze
 import torch
-from torch._C import dtype
 from FaceDetectorUtils import FaceDetector
 # from facenet_pytorch import MTCNN, InceptionResnetV1
 # from mtcnn import MTCNN
@@ -8,7 +6,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ImageFilter
 import sys
 import math
 import cv2
@@ -87,12 +85,13 @@ def resizeImages(inputPath, outputPath):
                     sys.stdout.write("\bCurrent progress: %s %%\r" %
                                         (str(math.ceil(idx / len(files) * 100))))
                     image = Image.open(filename)
-                    img = image.resize((224, 224), Image.BILINEAR) 
+                    img = image.resize((224, 224), Image.ANTIALIAS) 
+                    sharpened = img.filter(ImageFilter.SHARPEN)
 
                     if not os.path.exists(os.path.join(outputPath, emotionCategory)):
                         os.makedirs(os.path.join(outputPath, emotionCategory))
                     
-                    img.save(os.path.join(outputPath, emotionCategory, file), quality=100)
+                    img.save(os.path.join(outputPath, emotionCategory, file), quality=95)
 
             except IOError:
                 print("cannot create thumbnail for '%s'" % file)

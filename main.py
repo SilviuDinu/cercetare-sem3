@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from PIL import Image
 import torch
 from torchvision import datasets, models, transforms
@@ -10,6 +10,7 @@ import os
 import sys
 from utils import *
 from PIL import Image
+
 
 curr = os.path.dirname(__file__)
 emotionsDict = {
@@ -28,7 +29,7 @@ def main():
         input_path = os.path.join(curr, r'fer2013/train/')
         output_path = os.path.join(curr, r'fer2013_resized/train/')
         resizeImages(input_path, output_path)
-        os.system('afplay /System/Library/Sounds/Glass.aiff')
+       # os.system('afplay /System/Library/Sounds/Glass.aiff')
 
 
 
@@ -36,7 +37,7 @@ def main():
         input_path = os.path.join(curr, r'fer2013/validation/')
         output_path = os.path.join(curr, r'fer2013_resized/validation/')
         resizeImages(input_path, output_path)
-        os.system('afplay /System/Library/Sounds/Glass.aiff')
+      #  os.system('afplay /System/Library/Sounds/Glass.aiff')
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
@@ -84,6 +85,8 @@ def main():
     model = models.resnet50(pretrained=True).to(device)
 
     for param in model.parameters():
+        # change this to false!!!!!!!!!!!!!!!!!!!
+        # This freezes the inner layers
         param.requires_grad = False
 
     model.fc = nn.Sequential(
@@ -98,7 +101,7 @@ def main():
         for epoch in range(num_epochs):
             print('Epoch {}/{}'.format(epoch+1, num_epochs))
             print('-' * 10)
-            os.system('say Starting epoch ' + str(epoch+1))
+        #    os.system('say Starting epoch ' + str(epoch+1))
 
             for phase in ['train', 'validation']:
                 if phase == 'train':
@@ -145,9 +148,9 @@ def main():
     if not os.path.exists(os.path.join(curr, r'models/')):
         os.makedirs(os.path.join(curr, r'models/'))
     torch.save(model_trained.state_dict(),
-               os.path.join(curr, r'models/weights_v2.h5'))
+               os.path.join(curr, r'models/mobilenetv2_32epochs_F_nll_loss.h5'))
 
-    os.system('afplay /System/Library/Sounds/Glass.aiff')
+   # os.system('afplay /System/Library/Sounds/Glass.aiff')
 
 
     model = models.resnet50(pretrained=False).to(device)
@@ -155,7 +158,7 @@ def main():
         nn.Linear(2048, 128),
         nn.ReLU(inplace=True),
         nn.Linear(128, 7)).to(device)
-    model.load_state_dict(torch.load(os.path.join(curr, r'models/weights_v2.h5')))
+    model.load_state_dict(torch.load(os.path.join(curr, r'models/mobilenetv2_32epochs_F_nll_loss.h5')))
 
     validation_img_paths = []
 
@@ -200,6 +203,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    os.system('afplay /System/Library/Sounds/Glass.aiff')
+    #os.system('afplay /System/Library/Sounds/Glass.aiff')
 
 
