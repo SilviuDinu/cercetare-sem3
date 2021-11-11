@@ -75,6 +75,29 @@ def moveImagesTo(input, output):
                 except IOError:
                     pass
 
+def resizeImages(inputPath, outputPath):
+    for root, dirs, files in os.walk(inputPath):
+        for idx, file in enumerate(files):
+            pathList = os.path.normpath(root).split(os.path.sep)
+            emotionCategory = pathList[len(pathList) - 1]
+            filename = os.path.join(inputPath, emotionCategory, file)
+            try:
+                if not file.startswith('.'):
+                    sys.stdout.flush()
+                    sys.stdout.write("\bCurrent progress: %s %%\r" %
+                                        (str(math.ceil(idx / len(files) * 100))))
+                    image = Image.open(filename)
+                    img = image.resize((224, 224), Image.BILINEAR) 
+
+                    if not os.path.exists(os.path.join(outputPath, emotionCategory)):
+                        os.makedirs(os.path.join(outputPath, emotionCategory))
+                    
+                    img.save(os.path.join(outputPath, emotionCategory, file), quality=100)
+
+            except IOError:
+                print("cannot create thumbnail for '%s'" % file)
+    sys.stdout.write("\b\nDone\n")
+
 
 class TrainingData(torch.utils.data.Dataset):
     def __init__(self):

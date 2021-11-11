@@ -2,3 +2,7 @@ __pycache__
 .DS_Store
 fer2013/
 processed/
+FEC_dataset/
+fer2013_copy/
+fer2013_copy/train/Angry/0.jpg
+fer2013_resized/
