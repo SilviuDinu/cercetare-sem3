@@ -70,32 +70,43 @@ def main():
         'train':
             torch.utils.data.DataLoader(
                 image_datasets['train'],
-                batch_size=32,
+                batch_size=16,
                 shuffle=True,
                 num_workers=4),
         'validation':
             torch.utils.data.DataLoader(
                 image_datasets['validation'],
-                batch_size=32,
+                batch_size=16,
                 shuffle=False,
                 num_workers=4)}
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
-    model = models.resnet50(pretrained=True).to(device)
+    #model = models.resnet50(pretrained=True).to(device)
+    #model = models.vgg16(pretrained=True).to(device)
+    model = models.mobilenet_v2(pretrained=True).to(device)
+
 
     for param in model.parameters():
         # change this to false!!!!!!!!!!!!!!!!!!!
         # This freezes the inner layers
-        param.requires_grad = False
+        param.requires_grad = True
 
     model.fc = nn.Sequential(
-        nn.Linear(2048, 128),
-        nn.ReLU(inplace=True),
-        nn.Linear(128, 7)).to(device)
+       nn.Linear(2048, 128),
+       nn.ReLU(inplace=True),
+       nn.Linear(128, 7)).to(device)
+    #num_features = model.fc.in_features
+    # model.classifier[6] = nn.Sequential(
+    #                   nn.Linear(4096, 256), 
+    #                   nn.ReLU(), 
+    #                   nn.Dropout(0.4),
+    #                   nn.Linear(256, 7),                   
+    #                   nn.LogSoftmax(dim=1)).to(device)
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.fc.parameters())
+    # criterion = nn.NLLLoss()
+    optimizer = optim.Adam(model.parameters())
 
     def train_model(model, criterion, optimizer, num_epochs=3):
         for epoch in range(num_epochs):
@@ -143,7 +154,7 @@ def main():
                                                             epoch_acc))
         return model
     
-    model_trained = train_model(model, criterion, optimizer, num_epochs=32)
+    model_trained = train_model(model, criterion, optimizer, num_epochs=16)
 
     if not os.path.exists(os.path.join(curr, r'models/')):
         os.makedirs(os.path.join(curr, r'models/'))
