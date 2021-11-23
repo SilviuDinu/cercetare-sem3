@@ -27,11 +27,11 @@ emotionsDict = {
 
 
 def processFacesFromPictures():
-    fcd.runPictureDetection_MTCNN_NORMAL(os.path.join(
-        curr, r'fer2013/train/'), os.path.join(curr, r'processed/normal_MTCNN/train/'))
     fcd.runPictureDetection_MTCNN_PYTORCH(os.path.join(
         curr, r'fer2013/train/'), os.path.join(curr, r'processed/pytorch_MTCNN/train/'))
-    os.system('afplay /System/Library/Sounds/Glass.aiff')
+    fcd.runPictureDetection_MTCNN_PYTORCH(os.path.join(
+        curr, r'fer2013/validation/'), os.path.join(curr, r'processed/pytorch_MTCNN/validation/'))
+   # os.system('afplay /System/Library/Sounds/Glass.aiff')
 
 
 def startVideoCapture():
@@ -156,3 +156,6 @@ class TrainingData(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.n_samples
+
+
+#processFacesFromPictures()
