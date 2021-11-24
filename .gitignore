@@ -9,4 +9,4 @@ fer2013_copy/train/Angry/0.jpg
 fer2013_resized/
 models/mobilenetv2_32epochs_F_nll_loss.h5
 models/resnet50_32epochs_3_classes.h5
-fer2013_2/train/Angry/3.jpg
+sample.jpg
