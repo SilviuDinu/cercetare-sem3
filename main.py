@@ -10,6 +10,9 @@ import os
 import sys
 from utils import *
 from PIL import Image
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import plot_confusion_matrix
+from prettytable import PrettyTable
 
 
 curr = os.path.dirname(__file__)
@@ -23,6 +26,11 @@ emotionsDict = {
     "Surprise": 6,
 }
 
+emotionsDict_3 = {
+    0: "Angry",
+    1: "Happy",
+    2: "Sad"
+}
 def main():
 
     if not os.path.exists(os.path.join(curr, r'fer2013_resized/train/')):
@@ -62,9 +70,9 @@ def main():
 
     image_datasets = {
         'train':
-            datasets.ImageFolder(os.path.join(curr, r'fer2013_2/train/'), data_transforms['train']),
+            datasets.ImageFolder(os.path.join(curr, r'fer2013_copy/train/'), data_transforms['train']),
         'validation':
-            datasets.ImageFolder(os.path.join(curr, r'fer2013_2/validation/'), data_transforms['validation'])}
+            datasets.ImageFolder(os.path.join(curr, r'fer2013_copy/validation/'), data_transforms['validation'])}
 
     dataloaders = {
         'train':
@@ -157,15 +165,9 @@ def main():
                                                             epoch_acc))
         return model
     
-    # model_trained = train_model(model, criterion, optimizer, num_epochs=10)
 
-    # if not os.path.exists(os.path.join(curr, r'models/')):
-    #     os.makedirs(os.path.join(curr, r'models/'))
-    # torch.save(model_trained.state_dict(),
-    #            os.path.join(curr, r'models/mobilenetv2_32epochs_F_nll_loss.h5'))
 
-   # os.system('afplay /System/Library/Sounds/Glass.aiff')
-
+    nb_classes = 3
 
     model = models.mobilenet_v2(pretrained=False).to(device)
     model.fc = nn.Sequential(
@@ -173,55 +175,76 @@ def main():
         nn.ReLU(inplace=True),
         nn.Linear(128, 3)).to(device)
     model.load_state_dict(torch.load(os.path.join(curr, r'models/Random_Affine_Horizontal_Flip_76_48_acc_mobilenetv2_Angry_Sad_Happy.h5')))
+    model.eval()
 
     validation_img_paths = []
+    predictions = []
+    targets = []
+    correct = 0
+    total = 0
+    running_loss = 0.0
+    running_corrects = 0
+    with torch.no_grad():
+        for inputs, labels in dataloaders['validation']:
+            inputs = inputs.to(device)
+            labels = labels.to(device)
 
-    for root, dirs, files in os.walk(os.path.join(curr, r'Testing/')):
-        for idx, file in enumerate(files):
-            pathList = os.path.normpath(root).split(os.path.sep)
-            emotionCategory = pathList[len(pathList) - 1]
-            filename = os.path.join('Testing/', emotionCategory, file)
-            filename_out = os.path.join('Testing/good/', emotionCategory, file)
-            img = Image.open(filename)
-            rgbimg = img.convert('RGB')
-            rgbimg.save(filename_out)
-            # filename = emotionCategory + '_' + file
-            try:
-                if not file.startswith('.'):
-                    sys.stdout.flush()
-                    sys.stdout.write("\bCurrent progress: %s %%\r" %
-                                     (str(math.ceil(idx / len(files) * 100))))
-                    if (len(validation_img_paths) < 7):
-                        validation_img_paths.append(filename_out)
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
 
-            except IOError:
-                pass
+            _, preds = torch.max(outputs, 1)
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
 
-    # for img_path in validation_img_paths:
-    #     img = Image.open(img)
-    #     rgbimg = Image.new("RGBA", (48, 48))
-    #     rgbimg.paste(img)
-    #     rgbimg.save('foo.jpg')
-    print(validation_img_paths)
+            # sys.stdout.flush()
+            # sys.stdout.write("\bRunning loss: %s. Running corrects: %s %%\r" %
+            #                  (running_loss, running_corrects))
 
-    img_list = [Image.open(img_path) for img_path in validation_img_paths]
+            epoch_loss = running_loss / len(image_datasets['validation'])
+            epoch_acc = running_corrects.double() / \
+                len(image_datasets['validation'])
 
-    validation_batch = torch.stack([data_transforms['validation'](img).to(device)
-                                    for img in img_list])
+            for idx, i in enumerate(outputs):
+                predictions.append(torch.argmax(i).long())
+                targets.append(labels[idx].squeeze().long())
+                if torch.argmax(i) == labels[idx]:
+                    correct += 1
+                total += 1
+        print('{} loss: {:.4f}, acc: {:.4f}'.format('validation',
+                                                            epoch_loss,
+                                                            epoch_acc))
 
-    pred_logits_tensor = model(validation_batch)
-    pred_probs = F.softmax(pred_logits_tensor, dim=1).cpu().data.numpy()
-    print(img_list)
-    fig, axs = plt.subplots(1, len(img_list), figsize=(20, 5))
-    for i, img in enumerate(img_list):
-        ax = axs[i]
-        ax.axis('off')
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs[i, 0],
-                                                                        100*pred_probs[i, 1],
-                                                                        100*pred_probs[i, 2]))
-        ax.imshow(img)
+    accuracy = round(correct/total, 3)
+    print("Accuracy: ", accuracy)
 
-    plt.show()
+    predictions = torch.tensor(predictions)
+    targets = torch.tensor(targets)
+    conf_matrix = confusion_matrix(predictions, targets)
+    conf_matrix = torch.tensor(conf_matrix)
+
+    t = PrettyTable(['Class', 'Name', 'TP', 'TN', 'FP', 'FN', 'Sensitivity', 'Specificity', 'Precision', 'F1'])
+
+    TP = np.diag(conf_matrix)
+    for c in range(nb_classes):
+        idx = torch.ones(nb_classes).bool()
+        idx[c] = 0
+        # all non-class samples classified as non-class
+        TN = conf_matrix[idx.nonzero()[:, None], idx.nonzero()].sum() #conf_matrix[idx[:, None], idx].sum() - conf_matrix[idx, c].sum()
+        # all non-class samples classified as class
+        FP = conf_matrix[idx, c].sum()
+        # all class samples not classified as class
+        FN = conf_matrix[c, idx].sum()
+
+        sensitivity = (TP[c] / (TP[c]+FN))
+        specificity = (TN / (TN+FP))
+        precision = (TP[c] / (TP[c] + FP))
+        F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
+        
+        t.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), float(sensitivity), round(float(specificity), 3), float(precision), round(float(F1), 3)])
+
+
+    print(t)
+
 
 if __name__ == "__main__":
     main()
