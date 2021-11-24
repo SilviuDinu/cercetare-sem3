@@ -3,16 +3,30 @@ import numpy as np
 from facenet_pytorch import MTCNN as MTCNN_PYTORCH, InceptionResnetV1
 from mtcnn import MTCNN as MTCNN_NORMAL
 import os
+import torch
 import sys
 import math
 import matplotlib.pyplot as plt
 from PIL import Image
-import torch
 from torchvision import datasets, models, transforms
 import torch.nn as nn
 from torch.nn import functional as F
 import torch.optim as optim
 
+
+data_transforms = {
+    'train':
+        transforms.Compose([
+            # transforms.Resize((224, 224)),
+            transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ]),
+    'validation':
+        transforms.Compose([
+            # transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+        ])}
 
 emotionsDict = {
     "Angry": 0,
@@ -31,7 +45,7 @@ emotionsDict_3 = {
 }
 
 emotionsDict_7 = {
-     0: "Angry",
+    0: "Angry",
     1: "Disgust",
     2: "Fear",
     3: "Happy",
@@ -46,7 +60,7 @@ class FaceDetector():
         self.mtcnn_normal = MTCNN_NORMAL()
         self.mtcnn_pytorch = MTCNN_PYTORCH()
 
-    def _draw(self, frame, boxes, probs, landmarks):
+    def _draw(self, frame, boxes, probs, landmarks, text):
 
         # Draw landmarks and boxes for each face detected
 
@@ -61,14 +75,14 @@ class FaceDetector():
 
                 # Show probability
                 cv2.putText(frame, str(
-                    prob), (box[2], box[3]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                    text), (box[2], box[3]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
                 # Draw landmarks
-                cv2.circle(frame, tuple(ld[0]), 5, (0, 0, 255), -1)
-                cv2.circle(frame, tuple(ld[1]), 5, (0, 0, 255), -1)
-                cv2.circle(frame, tuple(ld[2]), 5, (0, 0, 255), -1)
-                cv2.circle(frame, tuple(ld[3]), 5, (0, 0, 255), -1)
-                cv2.circle(frame, tuple(ld[4]), 5, (0, 0, 255), -1)
+                # cv2.circle(frame, tuple(ld[0]), 5, (0, 0, 255), -1)
+                # cv2.circle(frame, tuple(ld[1]), 5, (0, 0, 255), -1)
+                # cv2.circle(frame, tuple(ld[2]), 5, (0, 0, 255), -1)
+                # cv2.circle(frame, tuple(ld[3]), 5, (0, 0, 255), -1)
+                # cv2.circle(frame, tuple(ld[4]), 5, (0, 0, 255), -1)
         except:
             pass
 
@@ -77,12 +91,13 @@ class FaceDetector():
     def runVideoDetection(self):
         print('live video detection started')
         cap = cv2.VideoCapture(0)
-        model = models.resnet50(pretrained=False)
+        model = models.mobilenet_v2(pretrained=True)
         model.fc = nn.Sequential(
             nn.Linear(2048, 128),
             nn.ReLU(inplace=True),
-            nn.Linear(128, 7))
-        model.load_state_dict(torch.load('models/64acc_resnet50_32epochs_CrossEntroy_3_classes.h5', map_location='cpu'))
+            nn.Linear(128, 3))
+        model.load_state_dict(torch.load(
+            'models/Random_Affine_Horizontal_Flip_76_48_acc_mobilenetv2_Angry_Sad_Happy.h5', map_location='cpu'))
         model.eval()
         while True:
             ret, frame = cap.read()
@@ -92,19 +107,31 @@ class FaceDetector():
                     frame, landmarks=True)
 
                 # draw on frame
-                self._draw(frame, boxes, probs, landmarks)
-
+                # self._draw(frame, boxes, probs, landmarks)
 
             except:
                 pass
 
             # Show the frame
-            cv2.imshow('Face Detection', frame)
-            resizedframe = cv2.resize(frame,(224,224))
-            frame_to_tensor = transforms.ToTensor()(resizedframe)
-            output = model(frame_to_tensor.unsqueeze(0))
+            mtcnn = self.mtcnn_pytorch
+            img_cropped = mtcnn(frame, save_path='frame.jpg')
+            img = cv2.imread('frame.jpg')
+            resized = cv2.resize(img, (48, 48))
+            cv2.imwrite('frame.jpg', resized)
+            good = Image.open('frame.jpg')
+            tensorImg = transforms.ToTensor()(good)
+
+            # pred_logits_tensor = model(tensorImg.unsqueeze(0))
+            output = model(tensorImg.unsqueeze(0))
+            pred_probs = F.softmax(output, dim=1).cpu().data.numpy()
             pred = torch.argmax(output)
-            print(pred, emotionsDict_7[int(pred)])
+            # print(100*pred_probs[0, int(pred)])
+            frame_legend = '{}, {:.2f}%'.format(
+                emotionsDict_3[int(pred)], 100*pred_probs[0, int(pred)])
+            
+            self._draw(frame, boxes, probs, landmarks, frame_legend)
+            cv2.imshow('Face Detection', frame)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 

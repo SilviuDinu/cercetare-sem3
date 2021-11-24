@@ -103,7 +103,7 @@ def main():
     model.fc = nn.Sequential(
        nn.Linear(2048, 128),
        nn.ReLU(inplace=True),
-       nn.Linear(128, 4)).to(device)
+       nn.Linear(128, 3)).to(device)
 
     #num_features = model.fc.in_features
     # model.classifier[6] = nn.Sequential(
@@ -171,7 +171,7 @@ def main():
         nn.Linear(2048, 128),
         nn.ReLU(inplace=True),
         nn.Linear(128, 3)).to(device)
-    model.load_state_dict(torch.load(os.path.join(curr, r'models/Random_Affine_Horizontal_Flip_76_48_acc_mobilenetv2_Angry_Sad_Happy.h5')))
+    model.load_state_dict(torch.load(os.path.join(curr, r'models/Random_Affine_Horizontal_Flip_76_48_acc_mobilenetv2_Angry_Sad_Happy.h5'), map_location=torch.device(device)))
     model.eval()
    
     with torch.no_grad():
