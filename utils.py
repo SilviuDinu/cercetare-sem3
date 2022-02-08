@@ -157,4 +157,4 @@ class TrainingData(torch.utils.data.Dataset):
     def __len__(self):
         return self.n_samples
 
-startVideoCapture()
+# startVideoCapture()
