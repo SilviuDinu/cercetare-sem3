@@ -80,9 +80,10 @@ class FaceDetector():
     def runVideoDetection(self):
         print('live video detection started')
         cap = cv2.VideoCapture(0)
+
         model_mobilenet_v2 = models.mobilenet_v2(pretrained=False).to(device)
         model_resnet50 = models.resnet50(pretrained=False).to(device)
-        model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=True).to(device)
+        model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=False).to(device)
 
         model_resnet50.fc = nn.Sequential(
             nn.Linear(2048, 128),
@@ -94,13 +95,13 @@ class FaceDetector():
         model_mobilenet_v3_large.classifier[3] = nn.Linear(1280, 3)
 
         model_mobilenet_v2.load_state_dict(torch.load(os.path.join(
-            curr, r'models/mobilenetv2_8-epochs_voting_2.h5'))).to(device)
+            curr, r'models/mobilenetv2_8-epochs_voting_2.h5'), map_location=torch.device('cpu')))
         model_mobilenet_v2.eval()
         model_resnet50.load_state_dict(torch.load(os.path.join(
-            curr, r'models/resnet50_8-epochs_voting_2.h5'))).to(device)
+            curr, r'models/resnet50_8-epochs_voting_2.h5'), map_location=torch.device('cpu')))
         model_resnet50.eval()
         model_mobilenet_v3_large.load_state_dict(torch.load(os.path.join(
-            curr, r'models/mobilenetv3_8-epochs_voting.h5'))).to(device)
+            curr, r'models/mobilenetv3_8-epochs_voting.h5'), map_location=torch.device('cpu')))
         model_mobilenet_v3_large.eval()
         while True:
             ret, frame = cap.read()
@@ -119,7 +120,7 @@ class FaceDetector():
             mtcnn = self.mtcnn_pytorch
             img_cropped = mtcnn(frame, save_path='frame.jpg')
             img = cv2.imread('frame.jpg')
-            resized = cv2.resize(img, (48, 48))
+            resized = cv2.resize(img, (224, 224))
             cv2.imwrite('frame.jpg', resized)
             good = Image.open('frame.jpg')
             tensorImg = transforms.ToTensor()(good)
