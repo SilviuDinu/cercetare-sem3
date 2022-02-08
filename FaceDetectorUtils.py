@@ -13,20 +13,9 @@ import torch.nn as nn
 from torch.nn import functional as F
 import torch.optim as optim
 
+curr = os.path.dirname(__file__)
 
-data_transforms = {
-    'train':
-        transforms.Compose([
-            # transforms.Resize((224, 224)),
-            transforms.RandomAffine(0, shear=10, scale=(0.8, 1.2)),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-        ]),
-    'validation':
-        transforms.Compose([
-            # transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-        ])}
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 emotionsDict = {
     "Angry": 0,
@@ -91,14 +80,28 @@ class FaceDetector():
     def runVideoDetection(self):
         print('live video detection started')
         cap = cv2.VideoCapture(0)
-        model = models.mobilenet_v2(pretrained=True)
-        model.fc = nn.Sequential(
+        model_mobilenet_v2 = models.mobilenet_v2(pretrained=False).to(device)
+        model_resnet50 = models.resnet50(pretrained=False).to(device)
+        model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=True).to(device)
+
+        model_resnet50.fc = nn.Sequential(
             nn.Linear(2048, 128),
             nn.ReLU(inplace=True),
-            nn.Linear(128, 3))
-        model.load_state_dict(torch.load(
-            'models/Random_Affine_Horizontal_Flip_76_48_acc_mobilenetv2_Angry_Sad_Happy.h5', map_location='cpu'))
-        model.eval()
+            nn.Dropout(0.4),
+            nn.Linear(128, 3)).to(device)
+
+        model_mobilenet_v2.classifier[1] = nn.Linear(1280, 3)
+        model_mobilenet_v3_large.classifier[3] = nn.Linear(1280, 3)
+
+        model_mobilenet_v2.load_state_dict(torch.load(os.path.join(
+            curr, r'models/mobilenetv2_8-epochs_voting_2.h5'))).to(device)
+        model_mobilenet_v2.eval()
+        model_resnet50.load_state_dict(torch.load(os.path.join(
+            curr, r'models/resnet50_8-epochs_voting_2.h5'))).to(device)
+        model_resnet50.eval()
+        model_mobilenet_v3_large.load_state_dict(torch.load(os.path.join(
+            curr, r'models/mobilenetv3_8-epochs_voting.h5'))).to(device)
+        model_mobilenet_v3_large.eval()
         while True:
             ret, frame = cap.read()
             try:
@@ -122,13 +125,35 @@ class FaceDetector():
             tensorImg = transforms.ToTensor()(good)
 
             # pred_logits_tensor = model(tensorImg.unsqueeze(0))
-            output = model(tensorImg.unsqueeze(0))
-            pred_probs = F.softmax(output, dim=1).cpu().data.numpy()
-            pred = torch.argmax(output)
+            outputs_1 = model_mobilenet_v2(tensorImg.unsqueeze(0))
+            outputs_2 = model_resnet50(tensorImg.unsqueeze(0))
+            outputs_3 = model_mobilenet_v3_large(tensorImg.unsqueeze(0))
+
+            correct_outputs = torch.clone(outputs_1)
+
+            for idx, i in enumerate(correct_outputs):
+                claims = []
+                pred_mobilenet = torch.argmax(outputs_1[idx])
+                pred_resnet = torch.argmax(outputs_2[idx])
+                pred_mobilenetv3 = torch.argmax(outputs_3[idx])
+                claims.append(pred_mobilenet)
+                claims.append(pred_resnet)
+                claims.append(pred_mobilenetv3)
+
+                most_frequent = max(set(claims), key=claims.count)
+                if most_frequent == pred_mobilenet:
+                    correct_outputs[idx] = outputs_1[idx]
+                elif most_frequent == pred_resnet:
+                    correct_outputs[idx] = outputs_2[idx]
+                elif most_frequent == pred_mobilenetv3:
+                    correct_outputs[idx] = outputs_3[idx]
+
+            pred_probs = F.softmax(correct_outputs, dim=1).cpu().data.numpy()
+            pred = torch.argmax(correct_outputs)
             # print(100*pred_probs[0, int(pred)])
             frame_legend = '{}, {:.2f}%'.format(
                 emotionsDict_3[int(pred)], 100*pred_probs[0, int(pred)])
-            
+
             self._draw(frame, boxes, probs, landmarks, frame_legend)
             cv2.imshow('Face Detection', frame)
 
