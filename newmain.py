@@ -67,35 +67,19 @@ def main():
     print(device)
 
     model_mobilenet_v2 = models.mobilenet_v2(pretrained=True).to(device)
-    model_resnet50 = models.resnet50(pretrained=True).to(device)
-    model_mobilenet_v3_large = models.mobilenet_v3_large(
-        pretrained=True).to(device)
-    # model_vgg16 = models.vgg16(pretrained=True).to(device)
-
-    for param in model_resnet50.parameters():
-        param.requires_grad = False
-
-    model_resnet50.fc = nn.Sequential(
-        nn.Linear(2048, 128),
-        nn.ReLU(inplace=True),
-        nn.Dropout(0.4),
-        nn.Linear(128, 3)).to(device)
-
-    # model_inception_v3.AuxLogits.fc = nn.Linear(768, 3)
-    # model_inception_v3.fc = nn.Linear(2048, 3)
-    # model_vgg16.classifier[6] = nn.Linear(4096, 3).to(device)
+    model_effnet = models.efficientnet_b0(pretrained=True).to(device)
+    model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=True).to(device)
+  
 
     model_mobilenet_v2.classifier[1] = nn.Linear(1280, 3).to(device)
+    model_effnet.classifier[1] = nn.Linear(1280, 3).to(device)
     model_mobilenet_v3_large.classifier[3] = nn.Linear(1280, 3).to(device)
 
     criterion = nn.CrossEntropyLoss()
     # criterion = nn.NLLLoss()
     optimizer_mobilenetv2 = optim.Adam(model_mobilenet_v2.parameters())
-    optimizer_resnet50 = optim.Adam(model_resnet50.parameters())
-    optimizer_model_mobilenetv3_large = optim.Adam(
-        model_mobilenet_v3_large.parameters())
-    # optimizer_vgg16 = optim.Adam(model_vgg16.parameters())
-    # optimizer_inceptionv3 = optim.Adam(model_inception_v3.parameters())
+    optimizer_effnet = optim.Adam(model_effnet.parameters())
+    optimizer_model_mobilenetv3_large = optim.Adam(model_mobilenet_v3_large.parameters())
 
     def train_model(models, criterion, optimizers, num_epochs=3):
         for epoch in range(num_epochs):
@@ -135,17 +119,17 @@ def main():
                     for idx, i in enumerate(correct_outputs):
                         claims = []
                         pred_mobilenet = torch.argmax(outputs_1[idx])
-                        pred_resnet = torch.argmax(outputs_2[idx])
+                        pred_effnet = torch.argmax(outputs_2[idx])
                         pred_mobilenetv3 = torch.argmax(outputs_3[idx])
                         claims.append(pred_mobilenet)
-                        claims.append(pred_resnet)
+                        claims.append(pred_effnet)
                         claims.append(pred_mobilenetv3)
 
                         most_frequent = max(set(claims), key=claims.count)
-                        if most_frequent == pred_mobilenet:
-                            correct_outputs[idx] = outputs_1[idx]
-                        elif most_frequent == pred_resnet:
+                        if most_frequent == pred_effnet:
                             correct_outputs[idx] = outputs_2[idx]
+                        elif most_frequent == pred_mobilenet:
+                            correct_outputs[idx] = outputs_1[idx]
                         elif most_frequent == pred_mobilenetv3:
                             correct_outputs[idx] = outputs_3[idx]
 
@@ -191,14 +175,14 @@ def main():
                     len(image_datasets[phase])
 
                 print('-' * 10)
-                print('MobilenetV2: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
+                print('MobileNetV2: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
                                                                          epoch_loss_1,
                                                                          epoch_acc_1))
                 epoch_loss_2 = running_loss_2 / len(image_datasets[phase])
                 epoch_acc_2 = running_corrects_2.double() / \
                     len(image_datasets[phase])
 
-                print('ResNet50: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
+                print('EfficientNet: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
                                                                       epoch_loss_2,
                                                                       epoch_acc_2))
 
@@ -206,7 +190,7 @@ def main():
                 epoch_acc_3 = running_corrects_3.double() / \
                     len(image_datasets[phase])
 
-                print('MobilenetV3: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
+                print('MobileNetV3: {} loss: {:.4f}, acc: {:.4f}'.format(phase,
                                                                          epoch_loss_3,
                                                                          epoch_acc_3))
 
@@ -225,40 +209,35 @@ def main():
             models[2]
         ]
 
-    # models_trained = train_model([model_mobilenet_v2, model_resnet50, model_mobilenet_v3_large], criterion, [
-    #                              optimizer_mobilenetv2, optimizer_resnet50, optimizer_model_mobilenetv3_large], num_epochs=10)
+    # models_trained = train_model([model_mobilenet_v2, model_effnet, model_mobilenet_v3_large], criterion, [
+    #                              optimizer_mobilenetv2, optimizer_effnet, optimizer_model_mobilenetv3_large], num_epochs=10)
 
     # torch.save(models_trained[0].state_dict(),
-    #            os.path.join(curr, r'models/mobilenetv2_8-epochs_voting_3.h5'))
+    #            os.path.join(curr, r'models/mobilenetv2_8-epochs_voting_4.h5'))
     # torch.save(models_trained[1].state_dict(),
-    #            os.path.join(curr, r'models/resnet50_8-epochs_voting_3.h5'))
+    #            os.path.join(curr, r'models/effnet_8-epochs_voting_2.h5'))
     # torch.save(models_trained[2].state_dict(),
-    #            os.path.join(curr, r'models/mobilenetv3_8-epochs_voting_2.h5'))
+    #            os.path.join(curr, r'models/mobilenetv3_8-epochs_voting_4.h5'))
 
     nb_classes = 3
 
     model_mobilenet_v2 = models.mobilenet_v2(pretrained=False).to(device)
-    model_resnet50 = models.resnet50(pretrained=False).to(device)
-    model_mobilenet_v3_large = models.mobilenet_v3_large(
-        pretrained=True).to(device)
+    model_effnet = models.efficientnet_b0(pretrained=False).to(device)
+    model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=False).to(device)
 
-    model_resnet50.fc = nn.Sequential(
-        nn.Linear(2048, 128),
-        nn.ReLU(inplace=True),
-        nn.Dropout(0.4),
-        nn.Linear(128, 3)).to(device)
 
     model_mobilenet_v2.classifier[1] = nn.Linear(1280, 3).to(device)
+    model_effnet.classifier[1] = nn.Linear(1280, 3).to(device)
     model_mobilenet_v3_large.classifier[3] = nn.Linear(1280, 3).to(device)
 
     model_mobilenet_v2.load_state_dict(torch.load(os.path.join(
-        curr, r'models/mobilenetv2_8-epochs_voting_2.h5'), map_location=torch.device(device)))
+        curr, r'models/mobilenetv2_8-epochs_voting_3.h5'), map_location=torch.device(device)))
     model_mobilenet_v2.eval()
-    model_resnet50.load_state_dict(torch.load(os.path.join(
-        curr, r'models/resnet50_8-epochs_voting_2.h5'), map_location=torch.device(device)))
-    model_resnet50.eval()
+    model_effnet.load_state_dict(torch.load(os.path.join(
+        curr, r'models/effnet_8-epochs_voting.h5'), map_location=torch.device(device)))
+    model_effnet.eval()
     model_mobilenet_v3_large.load_state_dict(torch.load(os.path.join(
-        curr, r'models/mobilenetv3_8-epochs_voting.h5'), map_location=torch.device(device)))
+        curr, r'models/mobilenetv3_8-epochs_voting_4.h5'), map_location=torch.device(device)))
     model_mobilenet_v3_large.eval()
 
     with torch.no_grad():
@@ -284,7 +263,7 @@ def main():
                 labels = labels.to(device)
 
                 outputs_1 = model_mobilenet_v2(inputs)
-                outputs_2 = model_resnet50(inputs)
+                outputs_2 = model_effnet(inputs)
                 outputs_3 = model_mobilenet_v3_large(inputs)
 
                 correct_outputs = torch.clone(outputs_1)
@@ -299,10 +278,10 @@ def main():
                     claims.append(pred_inceptionv3)
 
                     most_frequent = max(set(claims), key=claims.count)
-                    if most_frequent == pred_mobilenet:
-                        correct_outputs[idx] = outputs_1[idx]
-                    elif most_frequent == pred_resnet:
+                    if most_frequent == pred_resnet:
                         correct_outputs[idx] = outputs_2[idx]
+                    elif most_frequent == pred_mobilenet:
+                        correct_outputs[idx] = outputs_1[idx]
                     elif most_frequent == pred_inceptionv3:
                         correct_outputs[idx] = outputs_3[idx]
 
@@ -359,7 +338,7 @@ def main():
             print('Mobilenetv2 {} loss: {:.4f}, acc: {:.4f}'.format(phase,
                                                                     epoch_loss_1,
                                                                     epoch_acc_1))
-            print('Resnet50 {} loss: {:.4f}, acc: {:.4f}'.format(phase,
+            print('EfficientNet {} loss: {:.4f}, acc: {:.4f}'.format(phase,
                                                                  epoch_loss_2,
                                                                  epoch_acc_2))
             print('MobilenetV3 {} loss: {:.4f}, acc: {:.4f}'.format(phase,
@@ -403,10 +382,11 @@ def main():
                 precision = (TP[c] / (TP[c] + FP))
                 F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
 
-                t_1.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), float(
-                    sensitivity), round(float(specificity), 3), float(precision), round(float(F1), 3)])
-
+                t_1.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), round(float
+                    (sensitivity), 3), round(float(specificity), 3), round(float(precision), 3), round(float(F1), 3)])
             print(t_1)
+            t_1 = []
+            conf_matrix_1 = []
 
             t_2 = PrettyTable(['Class', 'Name', 'TP', 'TN', 'FP', 'FN',
                                'Sensitivity', 'Specificity', 'Precision', 'F1'])
@@ -428,8 +408,8 @@ def main():
                 precision = (TP[c] / (TP[c] + FP))
                 F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
 
-                t_2.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), float(
-                    sensitivity), round(float(specificity), 3), float(precision), round(float(F1), 3)])
+                t_2.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), round(float
+                    (sensitivity), 3), round(float(specificity), 3), round(float(precision), 3), round(float(F1), 3)])
 
             print(t_2)
 
@@ -453,9 +433,8 @@ def main():
                 precision = (TP[c] / (TP[c] + FP))
                 F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
 
-                t_3.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), float(
-                    sensitivity), round(float(specificity), 3), float(precision), round(float(F1), 3)])
-
+                t_3.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), round(float
+                    (sensitivity), 3), round(float(specificity), 3), round(float(precision), 3), round(float(F1), 3)])
             print(t_3)
 
             t_global = PrettyTable(['Class', 'Name', 'TP', 'TN', 'FP', 'FN',
@@ -478,8 +457,8 @@ def main():
                 precision = (TP[c] / (TP[c] + FP))
                 F1 = 2 * (precision * sensitivity) / (precision + sensitivity)
 
-                t_global.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), float(
-                    sensitivity), round(float(specificity), 3), float(precision), round(float(F1), 3)])
+                t_global.add_row([c, emotionsDict_3[c], float(TP[c]), float(TN), float(FP), float(FN), round(float
+                    (sensitivity), 3), round(float(specificity), 3), round(float(precision), 3), round(float(F1), 3)])
 
             print(t_global)
 
@@ -496,7 +475,7 @@ def main():
                                     for img in img_list])
 
     pred_logits_tensor_1 = model_mobilenet_v2(validation_batch)
-    pred_logits_tensor_2 = model_resnet50(validation_batch)
+    pred_logits_tensor_2 = model_effnet(validation_batch)
     pred_logits_tensor_3 = model_mobilenet_v3_large(validation_batch)
 
     pred_logits_tensor_global = torch.clone(pred_logits_tensor_1)
@@ -511,10 +490,10 @@ def main():
         claims.append(pred_mobilenetv3)
 
         most_frequent = max(set(claims), key=claims.count)
-        if most_frequent == pred_mobilenet:
-            pred_logits_tensor_global[idx] = pred_logits_tensor_1[idx]
-        elif most_frequent == pred_resnet:
+        if most_frequent == pred_resnet:
             pred_logits_tensor_global[idx] = pred_logits_tensor_2[idx]
+        elif most_frequent == pred_mobilenet:
+            pred_logits_tensor_global[idx] = pred_logits_tensor_1[idx]
         elif most_frequent == pred_mobilenetv3:
             pred_logits_tensor_global[idx] = pred_logits_tensor_3[idx]
 
@@ -541,7 +520,7 @@ def main():
     for i, img in enumerate(img_list):
         ax = axs[i]
         ax.axis('off')
-        fig.suptitle('Resnet50', fontsize=16)
+        fig.suptitle('EfficientNet', fontsize=16)
         ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_2[i, 0],
                                                                              100 *
                                                                              pred_probs_2[i, 1],
@@ -591,7 +570,7 @@ def main():
                                     for img in img_list])
 
     pred_logits_tensor_1 = model_mobilenet_v2(validation_batch)
-    pred_logits_tensor_2 = model_resnet50(validation_batch)
+    pred_logits_tensor_2 = model_effnet(validation_batch)
     pred_logits_tensor_3 = model_mobilenet_v3_large(validation_batch)
 
     pred_logits_tensor_global = torch.clone(pred_logits_tensor_1)
@@ -636,7 +615,7 @@ def main():
     for i, img in enumerate(img_list):
         ax = axs[i]
         ax.axis('off')
-        fig.suptitle('Resnet50', fontsize=16)
+        fig.suptitle('EfficientNet', fontsize=16)
         ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_2[i, 0],
                                                                              100 *
                                                                              pred_probs_2[i, 1],
