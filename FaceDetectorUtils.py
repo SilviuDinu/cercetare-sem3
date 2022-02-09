@@ -82,26 +82,22 @@ class FaceDetector():
         cap = cv2.VideoCapture(0)
 
         model_mobilenet_v2 = models.mobilenet_v2(pretrained=False).to(device)
-        model_resnet50 = models.resnet50(pretrained=False).to(device)
+        model_effnet = models.efficientnet_b0(pretrained=False).to(device)
         model_mobilenet_v3_large = models.mobilenet_v3_large(pretrained=False).to(device)
 
-        model_resnet50.fc = nn.Sequential(
-            nn.Linear(2048, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.4),
-            nn.Linear(128, 3)).to(device)
 
         model_mobilenet_v2.classifier[1] = nn.Linear(1280, 3)
+        model_effnet.classifier[1] = nn.Linear(1280, 3)
         model_mobilenet_v3_large.classifier[3] = nn.Linear(1280, 3)
 
         model_mobilenet_v2.load_state_dict(torch.load(os.path.join(
-            curr, r'models/mobilenetv2_8-epochs_voting_2.h5'), map_location=torch.device('cpu')))
+            curr, r'models/mobilenetv2_8-epochs_voting_3.h5'), map_location=torch.device('cpu')))
         model_mobilenet_v2.eval()
-        model_resnet50.load_state_dict(torch.load(os.path.join(
-            curr, r'models/resnet50_8-epochs_voting_2.h5'), map_location=torch.device('cpu')))
-        model_resnet50.eval()
+        model_effnet.load_state_dict(torch.load(os.path.join(
+            curr, r'models/effnet_8-epochs_voting.h5'), map_location=torch.device('cpu')))
+        model_effnet.eval()
         model_mobilenet_v3_large.load_state_dict(torch.load(os.path.join(
-            curr, r'models/mobilenetv3_8-epochs_voting.h5'), map_location=torch.device('cpu')))
+            curr, r'models/mobilenetv3_8-epochs_voting_4.h5'), map_location=torch.device('cpu')))
         model_mobilenet_v3_large.eval()
         while True:
             ret, frame = cap.read()
@@ -127,7 +123,7 @@ class FaceDetector():
 
             # pred_logits_tensor = model(tensorImg.unsqueeze(0))
             outputs_1 = model_mobilenet_v2(tensorImg.unsqueeze(0))
-            outputs_2 = model_resnet50(tensorImg.unsqueeze(0))
+            outputs_2 = model_effnet(tensorImg.unsqueeze(0))
             outputs_3 = model_mobilenet_v3_large(tensorImg.unsqueeze(0))
 
             correct_outputs = torch.clone(outputs_1)
