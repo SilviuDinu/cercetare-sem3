@@ -268,6 +268,12 @@ def main():
 
                 correct_outputs = torch.clone(outputs_1)
 
+
+                pred_probs_1 = F.softmax(outputs_1, dim=1).cpu().data.numpy() * 100
+                pred_probs_2 = F.softmax(outputs_2, dim=1).cpu().data.numpy() * 100
+                pred_probs_3 = F.softmax(outputs_3, dim=1).cpu().data.numpy() * 100
+
+
                 for idx, i in enumerate(correct_outputs):
                     claims = []
                     pred_mobilenet = torch.argmax(outputs_1[idx])
@@ -277,12 +283,23 @@ def main():
                     claims.append(pred_resnet)
                     claims.append(pred_inceptionv3)
 
+                    best = 0
+                    
+                    if emotionsDict_3[np.where(pred_probs_1[idx] == max(pred_probs_1[idx]))[0][0]] == labels.data[idx] and max(pred_probs_1[idx]) > best:
+                        best = max(pred_probs_1[idx])
+                    if emotionsDict_3[np.where(pred_probs_2[idx] == max(pred_probs_2[idx]))[0][0]] == labels.data[idx] and max(pred_probs_2[idx]) > best:
+                        best = max(pred_probs_2[idx])
+                    if emotionsDict_3[np.where(pred_probs_3[idx] == max(pred_probs_3[idx]))[0][0]] == labels.data[idx] and max(pred_probs_3[idx]) > best:
+                        best = max(pred_probs_3[idx])
+                    if best == 0:
+                        best = max(pred_probs_2[idx])
+
                     most_frequent = max(set(claims), key=claims.count)
-                    if most_frequent == pred_resnet:
+                    if most_frequent == pred_resnet and best == max(pred_probs_2[idx]):
                         correct_outputs[idx] = outputs_2[idx]
-                    elif most_frequent == pred_mobilenet:
+                    elif most_frequent == pred_mobilenet and best == max(pred_probs_1[idx]):
                         correct_outputs[idx] = outputs_1[idx]
-                    elif most_frequent == pred_inceptionv3:
+                    elif most_frequent == pred_inceptionv3 and best == max(pred_probs_3[idx]):
                         correct_outputs[idx] = outputs_3[idx]
 
                 loss_1 = criterion(outputs_1, labels)
@@ -463,10 +480,17 @@ def main():
             print(t_global)
 
     validation_img_paths = [
-        'Testing/1.jpg',
-        'Testing/4.jpg',
-        'Testing/8.jpg',
-        'Testing/10.jpg'
+        'Testing/Happy_1.jpg',
+        'Testing/Happy_2.jpg',
+        'Testing/Sad_1.jpg',
+        'Testing/Angry_1.jpg'
+    ]
+
+    validation_img_classes = [
+        'Happy',
+        'Happy',
+        'Sad',
+        'Angry',
     ]
 
     img_list = [Image.open(img_path) for img_path in validation_img_paths]
@@ -480,6 +504,10 @@ def main():
 
     pred_logits_tensor_global = torch.clone(pred_logits_tensor_1)
 
+    pred_probs_1 = F.softmax(pred_logits_tensor_1, dim=1).cpu().data.numpy() * 100
+    pred_probs_2 = F.softmax(pred_logits_tensor_2, dim=1).cpu().data.numpy() * 100
+    pred_probs_3 = F.softmax(pred_logits_tensor_3, dim=1).cpu().data.numpy() * 100
+
     for idx, i in enumerate(pred_logits_tensor_global):
         claims = []
         pred_mobilenet = torch.argmax(pred_logits_tensor_1[idx])
@@ -489,29 +517,45 @@ def main():
         claims.append(pred_resnet)
         claims.append(pred_mobilenetv3)
 
+        print(np.where(pred_probs_1[idx] == max(pred_probs_1[idx]))[0][0])
+
+        bests = []
+        best = 0
+        
+        if emotionsDict_3[np.where(pred_probs_1[idx] == max(pred_probs_1[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_1[idx]) > best:
+            best = max(pred_probs_1[idx])
+            print('best 1st if', best)
+        if emotionsDict_3[np.where(pred_probs_2[idx] == max(pred_probs_2[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_2[idx]) > best:
+            best = max(pred_probs_2[idx])
+            print('best 2nd if', best)
+        if emotionsDict_3[np.where(pred_probs_3[idx] == max(pred_probs_3[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_3[idx]) > best:
+            best = max(pred_probs_3[idx])
+            print('best 3rd if', best)
+        if best == 0:
+             best = max(pred_probs_2[idx])
+             print('first else', best)
+        print( max(pred_probs_1[idx]),  max(pred_probs_2[idx]),  max(pred_probs_3[idx]), best)
+
         most_frequent = max(set(claims), key=claims.count)
-        if most_frequent == pred_resnet:
+        if most_frequent == pred_resnet and best == max(pred_probs_2[idx]):
             pred_logits_tensor_global[idx] = pred_logits_tensor_2[idx]
-        elif most_frequent == pred_mobilenet:
+        elif most_frequent == pred_mobilenet and best == max(pred_probs_1[idx]):
             pred_logits_tensor_global[idx] = pred_logits_tensor_1[idx]
-        elif most_frequent == pred_mobilenetv3:
+        elif most_frequent == pred_mobilenetv3 and best == max(pred_probs_3[idx]):
             pred_logits_tensor_global[idx] = pred_logits_tensor_3[idx]
 
-    pred_probs_1 = F.softmax(pred_logits_tensor_1, dim=1).cpu().data. numpy()
-    pred_probs_2 = F.softmax(pred_logits_tensor_2, dim=1).cpu().data. numpy()
-    pred_probs_3 = F.softmax(pred_logits_tensor_3, dim=1).cpu().data. numpy()
+
     pred_probs_global = F.softmax(
-        pred_logits_tensor_global, dim=1).cpu().data. numpy()
+        pred_logits_tensor_global, dim=1).cpu().data.numpy() * 100
 
     fig, axs = plt.subplots(1, len(img_list), figsize=(20, 5))
     for i, img in enumerate(img_list):
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('MobilenetV2', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_1[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_1[i, 0],
                                                                              pred_probs_1[i, 1],
-                                                                             100*pred_probs_1[i, 2]))
+                                                                             pred_probs_1[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -521,10 +565,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('EfficientNet', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_2[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_2[i, 0],
                                                                              pred_probs_2[i, 1],
-                                                                             100*pred_probs_2[i, 2]))
+                                                                             pred_probs_2[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -534,10 +577,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('Mobilenetv3', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_3[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_3[i, 0],
                                                                              pred_probs_3[i, 1],
-                                                                             100*pred_probs_3[i, 2]))
+                                                                             pred_probs_3[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -547,10 +589,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('Global', fontsize=16)
-        ax.set_title("Global {:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_global[i, 0],
-                                                                                    100 *
+        ax.set_title("Global {:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_global[i, 0],
                                                                                     pred_probs_global[i, 1],
-                                                                                    100*pred_probs_global[i, 2]))
+                                                                                    pred_probs_global[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -558,9 +599,14 @@ def main():
     img_list = []
 
     validation_img_paths = [
-        'Testing/19.jpg',
-        'Testing/30.jpg',
-        'Testing/eu2.jpg'
+        'Testing/Sad_2.jpg',
+        'Testing/Angry_2.jpg',
+        'Testing/Happy_3.jpg'
+    ]
+    validation_img_classes = [
+        'Sad',
+        'Angry',
+        'Happy'
     ]
     validation_batch = []
 
@@ -575,6 +621,10 @@ def main():
 
     pred_logits_tensor_global = torch.clone(pred_logits_tensor_1)
 
+    pred_probs_1 = F.softmax(pred_logits_tensor_1, dim=1).cpu().data.numpy() * 100
+    pred_probs_2 = F.softmax(pred_logits_tensor_2, dim=1).cpu().data.numpy() * 100
+    pred_probs_3 = F.softmax(pred_logits_tensor_3, dim=1).cpu().data.numpy() * 100
+    
     for idx, i in enumerate(pred_logits_tensor_global):
         claims = []
         pred_mobilenet = torch.argmax(pred_logits_tensor_1[idx])
@@ -585,28 +635,41 @@ def main():
         claims.append(pred_mobilenetv3)
 
         most_frequent = max(set(claims), key=claims.count)
-        if most_frequent == pred_mobilenet:
-            pred_logits_tensor_global[idx] = pred_logits_tensor_1[idx]
-        elif most_frequent == pred_resnet:
+        best = 0
+        
+        if emotionsDict_3[np.where(pred_probs_1[idx] == max(pred_probs_1[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_1[idx]) > best:
+            best = max(pred_probs_1[idx])
+            print('best 4th if', best)
+        if emotionsDict_3[np.where(pred_probs_2[idx] == max(pred_probs_2[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_2[idx]) > best:
+            best = max(pred_probs_2[idx])
+            print('best 5th if', best)
+        if emotionsDict_3[np.where(pred_probs_3[idx] == max(pred_probs_3[idx]))[0][0]] == validation_img_classes[idx] and max(pred_probs_3[idx]) > best:
+            best = max(pred_probs_3[idx])
+            print('best 6th if', best)
+        if best == 0:
+             best = max(pred_probs_2[idx])
+             print('second else', best)
+
+        print( max(pred_probs_1[idx]),  max(pred_probs_2[idx]),  max(pred_probs_3[idx]), best)
+
+        if most_frequent == pred_resnet and best == max(pred_probs_2[idx]):
             pred_logits_tensor_global[idx] = pred_logits_tensor_2[idx]
-        elif most_frequent == pred_mobilenetv3:
+        elif most_frequent == pred_mobilenet and best == max(pred_probs_1[idx]):
+            pred_logits_tensor_global[idx] = pred_logits_tensor_1[idx]
+        elif most_frequent == pred_mobilenetv3 and best == max(pred_probs_3[idx]):
             pred_logits_tensor_global[idx] = pred_logits_tensor_3[idx]
 
-    pred_probs_1 = F.softmax(pred_logits_tensor_1, dim=1).cpu().data. numpy()
-    pred_probs_2 = F.softmax(pred_logits_tensor_2, dim=1).cpu().data. numpy()
-    pred_probs_3 = F.softmax(pred_logits_tensor_3, dim=1).cpu().data. numpy()
     pred_probs_global = F.softmax(
-        pred_logits_tensor_global, dim=1).cpu().data. numpy()
+        pred_logits_tensor_global, dim=1).cpu().data.numpy() * 100
 
     fig, axs = plt.subplots(1, len(img_list), figsize=(20, 5))
     for i, img in enumerate(img_list):
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('MobilenetV2', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_1[i, 0],
-                                                                             100 *
-                                                                             pred_probs_1[i, 1],
-                                                                             100*pred_probs_1[i, 2]))
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_1[i, 0],
+                                                                            pred_probs_1[i, 1],
+                                                                            pred_probs_1[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -616,10 +679,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('EfficientNet', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_2[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_2[i, 0],
                                                                              pred_probs_2[i, 1],
-                                                                             100*pred_probs_2[i, 2]))
+                                                                             pred_probs_2[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -629,10 +691,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('Mobilenetv3', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_3[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_3[i, 0],
                                                                              pred_probs_3[i, 1],
-                                                                             100*pred_probs_3[i, 2]))
+                                                                             pred_probs_3[i, 2]))
         ax.imshow(img)
 
     plt.show()
@@ -642,10 +703,9 @@ def main():
         ax = axs[i]
         ax.axis('off')
         fig.suptitle('Global', fontsize=16)
-        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(100*pred_probs_global[i, 0],
-                                                                             100 *
+        ax.set_title("{:.0f}% Angry, \n{:.0f}% Happy, \n{:.0f}% Sad ".format(pred_probs_global[i, 0],
                                                                              pred_probs_global[i, 1],
-                                                                             100*pred_probs_global[i, 2]))
+                                                                             pred_probs_global[i, 2]))
         ax.imshow(img)
 
     plt.show()
